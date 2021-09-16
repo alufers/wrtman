@@ -12,8 +12,14 @@ COPY go.sum go.sum
 COPY ./wrtman-frontend/package.json ./wrtman-frontend/package.json
 COPY ./wrtman-frontend/yarn.lock ./wrtman-frontend/yarn.lock
 
-RUN go mod download -json
+RUN go mod download -json && cd wrtman-frontend 
 
 COPY . .
 
 RUN mkdir -p /app/wrtman && go generate && go build -tags embed_frontend -ldflags="-s -w" 
+
+FROM scratch AS bin-unix
+COPY --from=build /app/wrtman /app/wrtman
+COPY --from=build /build/wrtman/data/oui.txt /app/data/oui.txt
+
+ENTRYPOINT /app/wrtman

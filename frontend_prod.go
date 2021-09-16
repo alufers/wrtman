@@ -2,7 +2,7 @@
 package main
 
 //go:generate bash -c "cd wrtman-frontend && yarn install && yarn run build"
-``
+
 import (
 	"embed"
 	"io/fs"

@@ -3,7 +3,7 @@
 ############################
 FROM golang:alpine AS builder
 # Git is required for fetching the dependencies.
-RUN apk update && apk add --no-cache git nodejs yarn && mkdir -p /build/wrtman
+RUN apk update && apk add --no-cache git nodejs yarn bash && mkdir -p /build/wrtman
 
 WORKDIR /build/wrtman
 

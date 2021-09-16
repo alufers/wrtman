@@ -22,4 +22,4 @@ FROM scratch AS bin-unix
 COPY --from=builder /app/wrtman /app/wrtman
 COPY --from=builder /build/wrtman/data/oui.txt /app/data/oui.txt
 
-ENTRYPOINT /app/wrtman
+ENTRYPOINT ["/app/wrtman"]

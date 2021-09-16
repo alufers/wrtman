@@ -1,0 +1,1 @@
+{"proxy":{"api":"https://customer-lubaczow24-abp-ebp-cont1-wpi4-kjo.pbk.asseco.pl/frontend-web/","cookies":{"JSESSIONID":"MjJiZDY2YTktMzc1ZS00Nzc2LWJmNmMtYjNlYTA1NjkzZmIx","XSRF-TOKEN":"04d50a30-a1e1-48a7-a834-cc6f32a9532d"}}}

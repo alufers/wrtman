@@ -19,7 +19,7 @@ COPY . .
 RUN mkdir -p /app/wrtman && go generate && go build -tags embed_frontend -ldflags="-s -w" 
 
 FROM scratch AS bin-unix
-COPY --from=build /app/wrtman /app/wrtman
-COPY --from=build /build/wrtman/data/oui.txt /app/data/oui.txt
+COPY --from=builder /app/wrtman /app/wrtman
+COPY --from=builder /build/wrtman/data/oui.txt /app/data/oui.txt
 
 ENTRYPOINT /app/wrtman

@@ -16,7 +16,7 @@ RUN go mod download -json && cd wrtman-frontend
 
 COPY . .
 
-RUN mkdir -p /app && go generate && go build -tags embed_frontend -ldflags='-s -w -extldflags "-static"' -o /app/wrtman
+RUN mkdir -p /app && go generate && CGO_ENABLED=0 go build -tags embed_frontend -ldflags='-s -w -extldflags="-static"' -o /app/wrtman
 
 FROM scratch AS bin-unix
 COPY --from=alpine:latest /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/

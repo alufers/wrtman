@@ -16,9 +16,10 @@ RUN go mod download -json && cd wrtman-frontend
 
 COPY . .
 
-RUN mkdir -p /app/wrtman && go generate && go build -tags embed_frontend -ldflags="-s -w" 
+RUN mkdir -p /app && go generate && go build -tags embed_frontend -ldflags="-s -w" -o /app/wrtman
 
 FROM scratch AS bin-unix
+COPY --from=alpine:latest /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/wrtman /app/wrtman
 COPY --from=builder /build/wrtman/data/oui.txt /app/data/oui.txt
 

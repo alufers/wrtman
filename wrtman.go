@@ -26,12 +26,12 @@ func main() {
 	viper.SetDefault("extra.oui_db", "oui.txt")
 	viper.SetDefault("ssh.key_path", "$HOME/.ssh/id_rsa")
 
-	viper.SafeWriteConfigAs("wrtman-config.yaml")
+	// viper.SafeWriteConfigAs("wrtman-config.yaml")
 	err := viper.ReadInConfig()
 	if err != nil {
 		panic(fmt.Errorf("Fatal error config file: %w \n", err))
 	}
-
+	log.Printf("Loaded config from: %v", viper.ConfigFileUsed())
 	key, err := LoadKeyFile(os.ExpandEnv(viper.GetString("ssh.key_path")))
 	if err != nil {
 		panic(err)

@@ -1,5 +1,5 @@
 const config = {
-  baseURL: "/",
+  baseURL: "",
 };
 
 export default config;

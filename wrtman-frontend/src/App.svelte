@@ -54,6 +54,23 @@
     padding: 4px;
     font-family: monospace;
   }
+
+
+  :global(select) {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #fff;
+    border: 1px solid var(--foreground-secondary);
+    padding: 4px;
+    font-family: monospace;
+  }
+
+  :global(select option) {
+    background: black;
+  }
+
+
   main {
     padding: 0.5em;
     padding-left: 5em;

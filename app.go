@@ -68,8 +68,35 @@ func (a *App) getDHCPLeases(ctx *fiber.Ctx) error {
 	}
 
 	dhcpLeasesWithVendor, _ := AddVendorsToDHCPLeases(a.OuiHelper, dhcpLeases)
+	allAPNetworks := []*APNetwork{}
 
-	return ctx.JSON(dhcpLeasesWithVendor)
+	for _, conn := range a.Connections {
+		nets, err := conn.WirelessDataService.GetApNetworks()
+		if err != nil {
+			return err
+		}
+		allAPNetworks = append(allAPNetworks, nets...)
+	}
+
+	dhcpLeasesWithWirelessDetails := []*DHCPLeaseWithWirelessDetails{}
+
+	for _, lease := range dhcpLeasesWithVendor {
+		leaseWithDetails := &DHCPLeaseWithWirelessDetails{
+			DHCPLeaseWithVendor: lease,
+		}
+		for _, net := range allAPNetworks {
+			for _, c := range net.Clients {
+				if c.MACAddress == lease.MACAddress {
+					leaseWithDetails.SSID = &net.SSID
+					leaseWithDetails.APHostname = &net.APHostname
+					leaseWithDetails.SignalStrength = &c.SignalStrength
+					leaseWithDetails.WirelessNetworkType = &net.Type
+				}
+			}
+		}
+		dhcpLeasesWithWirelessDetails = append(dhcpLeasesWithWirelessDetails, leaseWithDetails)
+	}
+	return ctx.JSON(dhcpLeasesWithWirelessDetails)
 
 }
 
@@ -145,6 +172,7 @@ func (a *App) fetchDHCPLeases() ([]*DHCPLease, error) {
 		}
 
 	}
+
 	return a.cachedDHCPLeases, nil
 }
 

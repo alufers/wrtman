@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -22,14 +23,17 @@ type OpenWrtConnection struct {
 	disconnectorRunning bool
 	disconnectTicks     int
 	connMutex           sync.Mutex
+	WirelessDataService *WirelessDataService
 }
 
-func NewOpenWrtConnection(SSHAddress string, clientConfig *ssh.ClientConfig) *OpenWrtConnection {
-	return &OpenWrtConnection{
+func NewOpenWrtConnection(SSHAddress string, clientConfig *ssh.ClientConfig) (conn *OpenWrtConnection) {
+	conn = &OpenWrtConnection{
 		SSHAddress:      SSHAddress,
 		SSHClientConfig: clientConfig,
 		connMutex:       sync.Mutex{},
 	}
+	conn.WirelessDataService = NewWirelessDataService(conn)
+	return
 }
 
 func (o *OpenWrtConnection) ConnectToSSH() error {
@@ -109,6 +113,15 @@ func (o *OpenWrtConnection) GetMacAddrs() ([]string, error) {
 	return out, nil
 }
 
+func (o *OpenWrtConnection) UbusCall(service, method string, out interface{}) error {
+	ubusOutput, err := o.RunCommandAndGetString(fmt.Sprintf("ubus call %v %v", service, method))
+	if err != nil {
+		return fmt.Errorf("failed make an ubus call to %v %v: %w", service, method, err)
+	}
+
+	return json.Unmarshal([]byte(ubusOutput), out)
+}
+
 func (o *OpenWrtConnection) RunCommandAndGetString(cmd string) (string, error) {
 	// log.Printf("run command start at %v: %v", o.SSHAddress, cmd)
 	conn, err := o.ConnectOrGetConn()
@@ -133,7 +146,7 @@ func (o *OpenWrtConnection) RunCommandAndGetString(cmd string) (string, error) {
 	// sess.Stderr = buf
 	err = sess.Run(cmd)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute %v: %w", cmd, err)
+		return "", fmt.Errorf("failed to execute '%v': %w", cmd, err)
 	}
 	// log.Printf("run command done: %v, %v", cmd, buf.String())
 	return buf.String(), err

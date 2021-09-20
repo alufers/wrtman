@@ -16,8 +16,16 @@ type DHCPLease struct {
 }
 
 type DHCPLeaseWithVendor struct {
-	DHCPLease
+	*DHCPLease
 	Vendor string `json:"vendor"`
+}
+
+type DHCPLeaseWithWirelessDetails struct {
+	*DHCPLeaseWithVendor
+	SSID                *string  `json:"ssid"`
+	SignalStrength      *float64 `json:"signalStrength"`
+	WirelessNetworkType *string  `json:"wirelessNetworkType"`
+	APHostname          *string  `json:"apHostname"`
 }
 
 func ParseDHCPLeases(fileContents string) (leases []*DHCPLease, err error) {
@@ -45,7 +53,7 @@ func AddVendorsToDHCPLeases(oh *OuiHelper, leases []*DHCPLease) (out []*DHCPLeas
 		}
 		out = append(out, &DHCPLeaseWithVendor{
 
-			DHCPLease: *l,
+			DHCPLease: l,
 			Vendor:    vendor,
 		})
 	}

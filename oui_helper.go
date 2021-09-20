@@ -25,6 +25,7 @@ func NewOuiHelper() *OuiHelper {
 }
 
 func (oh *OuiHelper) LookupVendor(mac string) (string, error) {
+	
 	oh.cacheMutex.Lock()
 	defer oh.cacheMutex.Unlock()
 	if cached, ok := oh.cache[mac]; ok {

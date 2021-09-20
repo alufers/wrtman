@@ -4,4 +4,8 @@ export default interface IDHCPLease {
   hostname: string;
   expiryTime: string;
   vendor: string;
+  wirelessNetworkType: string | null;
+  ssid: string | null;
+  signalStrength: number | null;
+  apHostname: string | null;
 }

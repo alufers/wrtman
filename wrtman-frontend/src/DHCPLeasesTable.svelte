@@ -4,7 +4,7 @@
   import DataTable from "./data-table/DataTable.svelte";
   import DurationUntillCell from "./data-table/DurationUntillCell.svelte";
   import SimpleTextCell from "./data-table/SimpleTextCell.svelte";
-  import { sortDates, sortText } from "./data-table/sortFuncs";
+  import { sortDates, sortNumbers, sortText } from "./data-table/sortFuncs";
   import type IDHCPLease from "./model/IDHCPLease";
   import VendorLogo from "./VendorLogo.svelte";
 
@@ -44,6 +44,23 @@
       component: [DurationUntillCell],
       sortFunc: sortDates,
     },
+    {
+      key: "ssid",
+      label: "Wireless Network",
+      filterable: true,
+      sortFunc: sortText,
+    },
+    {
+      key: "signalStrength",
+      label: "RSSI",
+      sortFunc: sortNumbers,
+    },
+    {
+      key: "apHostname",
+      label: "Access Point",
+      filterable: true,
+      sortFunc: sortText,
+    },
   ];
 
   const fetchDHCPLeases = fetch(config.baseURL + "/api/dhcp-leases")
@@ -64,7 +81,11 @@
   {:catch error}
     <p>An error occurred!</p>
   {/await}
-  <DataTable {columns} dataPromise={fetchDHCPLeases} defaultSortKey="-expiryTime" />
+  <DataTable
+    {columns}
+    dataPromise={fetchDHCPLeases}
+    defaultSortKey="-expiryTime"
+  />
 </section>
 
 <style>

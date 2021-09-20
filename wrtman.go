@@ -13,6 +13,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+//go:generate bash -c "cd wrtman-frontend && yarn install && yarn run build"
+
 func main() {
 
 	viper.SetConfigName("wrtman-config")

@@ -50,6 +50,9 @@
   }
   .sort-icons {
     color: var(--background-dimmer);
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
   }
   .sort-icon:hover {
     color: #eee;

@@ -27,11 +27,14 @@ func main() {
 	viper.SetDefault("devices.main.user", "root")
 	viper.SetDefault("extra.oui_db", "oui.txt")
 	viper.SetDefault("ssh.key_path", "$HOME/.ssh/id_rsa")
+	viper.SetDefault("db.type", "sqlite")
+	viper.SetDefault("db.filename", "wrtman.db")
+	viper.SetDefault("db.dsn", "SET FOR POSTGRES lol")
 
 	// viper.SafeWriteConfigAs("wrtman-config.yaml")
 	err := viper.ReadInConfig()
 	if err != nil {
-		panic(fmt.Errorf("Fatal error config file: %w \n", err))
+		panic(fmt.Errorf("fatal error config file: %w", err))
 	}
 	log.Printf("Loaded config from: %v", viper.ConfigFileUsed())
 	key, err := LoadKeyFile(os.ExpandEnv(viper.GetString("ssh.key_path")))
@@ -51,10 +54,14 @@ func main() {
 	application := NewApp([]*OpenWrtConnection{
 		mainConn,
 	})
+	if err := application.ConnectToDB(); err != nil {
+		log.Fatalf("failed to connect to DB: %v", err)
+	}
 	app := fiber.New()
 
 	app.Use(cors.New())
 	application.MountEndpoints(app)
+	application.MountHooks()
 	err = application.AutodiscoverDHCPDevices()
 	if err != nil {
 		log.Fatal(err)

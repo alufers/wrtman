@@ -1,37 +1,142 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
+	"github.com/alufers/wrtman/models"
 	"github.com/gofiber/fiber/v2"
 	"github.com/spf13/viper"
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 type App struct {
-	Connections           []*OpenWrtConnection
-	cachedDHCPLeases      []*DHCPLease
-	lastDHCPLeaseFetch    time.Time
-	cachedDHCPLeasesMutex sync.Mutex
-	OuiHelper             *OuiHelper
+	DB              *gorm.DB
+	Connections     []*OpenWrtConnection
+	OuiHelper       *OuiHelper
+	MainDHCPService *DHCPLeasesService
+	deviceWithDHCP  *OpenWrtConnection
 }
 
 func NewApp(Connections []*OpenWrtConnection) *App {
-	return &App{
-		Connections: Connections,
-		OuiHelper:   NewOuiHelper(),
+	var conn *OpenWrtConnection
+	for _, c := range Connections {
+		if c.HasDHCP {
+			conn = c
+		}
 	}
+	return &App{
+		Connections:     Connections,
+		OuiHelper:       NewOuiHelper(),
+		MainDHCPService: NewDHCPLeasesService(conn),
+		deviceWithDHCP:  conn,
+	}
+}
+
+func (a *App) ConnectToDB() error {
+	var err error
+	switch viper.GetString("db.type") {
+	case "sqlite":
+		a.DB, err = gorm.Open(sqlite.Open(viper.GetString("db.filename")), &gorm.Config{})
+	case "postgres":
+		a.DB, err = gorm.Open(postgres.Open(viper.GetString("db.dsn")), &gorm.Config{})
+	default:
+		return fmt.Errorf("unknown database type '%v'", viper.GetString("db.type"))
+	}
+	if err != nil {
+		return err
+	}
+	err = a.DB.AutoMigrate(models.AllModels...)
+	return err
 }
 
 func (a *App) MountEndpoints(fiberApp *fiber.App) {
 	fiberApp.Get("/api/devices", a.getDevices)
 	fiberApp.Get("/api/dhcp-leases", a.getDHCPLeases)
+	fiberApp.Get("/api/all-devices", a.getAllDevices)
+}
+
+func (a *App) MountHooks() {
+	a.MainDHCPService.AddHook(a.dhcpLeasesFetchedHook)
+	go func() {
+		for {
+			log.Printf("Fetching dhcp leases because of schedule...")
+			a.MainDHCPService.GetDHCPLeases()
+			time.Sleep(time.Minute * 10)
+		}
+	}()
+}
+
+func (a *App) getAllDevices(c *fiber.Ctx) error {
+	devices := []*models.Device{}
+	if err := a.DB.Find(&devices).Error; err != nil {
+		return err
+	}
+	devicesWithVendor := []interface{}{}
+	for _, dev := range devices {
+		v, _ := a.OuiHelper.LookupVendor(dev.MACAddress)
+		devicesWithVendor = append(devicesWithVendor, struct {
+			*models.Device
+			Vendor string `json:"vendor"`
+		}{
+			Device: dev,
+			Vendor: v,
+		})
+	}
+	return c.JSON(devicesWithVendor)
+}
+
+func (a *App) dhcpLeasesFetchedHook(leases []*DHCPLease) {
+	log.Printf("dhcpLeasesFetchedHook %#v", leases)
+	go func() {
+		allAPNetworks, err := a.getAllApNetworks()
+		if err != nil {
+			log.Printf("Error fetching AP networks: %v", err)
+			return
+		}
+		for _, l := range leases {
+			dev := &models.Device{}
+			if err := a.DB.Where("mac_address = ?", l.MACAddress).First(dev).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				log.Printf("Error fetching device %v: %v", l.MACAddress, err)
+				continue
+			}
+			dev.MACAddress = l.MACAddress
+			dev.Hostname = l.Hostname
+			dev.LastSeen = time.Now()
+			for _, net := range allAPNetworks {
+				for _, client := range net.Clients {
+					if client.MACAddress == l.MACAddress {
+						dev.WirelessAPName = &net.APHostname
+						dev.WirelessNetwork = &net.SSID
+					}
+				}
+			}
+			if err := a.DB.Save(dev).Error; err != nil {
+				log.Printf("Error saving device to DB %v: %v", l.MACAddress, err)
+			}
+		}
+	}()
+}
+
+// getAllApNetworks returns all AP networks from all connections
+func (a *App) getAllApNetworks() ([]*APNetwork, error) {
+	networks := []*APNetwork{}
+	for _, conn := range a.Connections {
+		apNetworks, err := conn.WirelessDataService.GetApNetworks()
+		if err != nil {
+			return nil, err
+		}
+		networks = append(networks, apNetworks...)
+	}
+	return networks, nil
 }
 
 func (a *App) AutodiscoverDHCPDevices() error {
-	leases, err := a.fetchDHCPLeases()
+	leases, err := a.MainDHCPService.GetDHCPLeases()
 	if err != nil {
 		return err
 	}
@@ -50,7 +155,7 @@ func (a *App) AutodiscoverDHCPDevices() error {
 					continue
 				}
 				log.Printf("Discovered device %v (%v) at %v", l.Hostname, l.MACAddress, l.IPAddress)
-				conn := NewOpenWrtConnection(l.IPAddress+":22", a.deviceWithDHCP().SSHClientConfig)
+				conn := NewOpenWrtConnection(l.IPAddress+":22", a.deviceWithDHCP.SSHClientConfig)
 				conn.Hostname = l.Hostname
 				a.Connections = append(a.Connections, conn)
 			}
@@ -62,20 +167,15 @@ func (a *App) AutodiscoverDHCPDevices() error {
 
 func (a *App) getDHCPLeases(ctx *fiber.Ctx) error {
 
-	dhcpLeases, err := a.fetchDHCPLeases()
+	dhcpLeases, err := a.MainDHCPService.GetDHCPLeases()
 	if err != nil {
 		return err
 	}
 
 	dhcpLeasesWithVendor, _ := AddVendorsToDHCPLeases(a.OuiHelper, dhcpLeases)
-	allAPNetworks := []*APNetwork{}
-
-	for _, conn := range a.Connections {
-		nets, err := conn.WirelessDataService.GetApNetworks()
-		if err != nil {
-			return err
-		}
-		allAPNetworks = append(allAPNetworks, nets...)
+	allAPNetworks, err := a.getAllApNetworks()
+	if err != nil {
+		return err
 	}
 
 	dhcpLeasesWithWirelessDetails := []*DHCPLeaseWithWirelessDetails{}
@@ -129,7 +229,7 @@ func (a *App) getDevices(ctx *fiber.Ctx) error {
 		var vendorP *string
 		addrs, err := c.GetMacAddrs()
 		if err != nil || addrs == nil || len(addrs) == 0 {
-			log.Printf("failed to get mac address: %w", err)
+			log.Printf("failed to get mac address: %v", err)
 		} else {
 			vendor, err := a.OuiHelper.LookupVendor(addrs[0])
 
@@ -153,35 +253,4 @@ func (a *App) getDevices(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.JSON(out)
-}
-
-func (a *App) fetchDHCPLeases() ([]*DHCPLease, error) {
-	a.cachedDHCPLeasesMutex.Lock()
-	defer a.cachedDHCPLeasesMutex.Unlock()
-	if a.cachedDHCPLeases == nil || a.lastDHCPLeaseFetch.Before(time.Now().Add(-time.Second*10)) {
-		fileContents, err := a.deviceWithDHCP().RunCommandAndGetString("cat /tmp/dhcp.leases")
-		if err != nil {
-			a.cachedDHCPLeases = nil
-			return nil, fmt.Errorf("failed to read /tmp/dhcp.leases: %w", err)
-		}
-
-		a.cachedDHCPLeases, err = ParseDHCPLeases(fileContents)
-		if err != nil {
-			a.cachedDHCPLeases = nil
-			return nil, fmt.Errorf("failed to parse /tmp/dhcp.leases: %w", err)
-		}
-
-	}
-
-	return a.cachedDHCPLeases, nil
-}
-
-func (a *App) deviceWithDHCP() *OpenWrtConnection {
-	var conn *OpenWrtConnection
-	for _, c := range a.Connections {
-		if c.HasDHCP {
-			conn = c
-		}
-	}
-	return conn
 }

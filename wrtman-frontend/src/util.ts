@@ -1,4 +1,9 @@
 export function formatDuration(durationSeconds: number): string {
+  let inThePast = false;
+  if (durationSeconds < 0) {
+    durationSeconds = -durationSeconds;
+    inThePast = true;
+  }
   let result = "";
   let days = Math.floor(durationSeconds / (24 * 60 * 60));
   if (days > 0) {
@@ -14,6 +19,9 @@ export function formatDuration(durationSeconds: number): string {
 
   durationSeconds %= 60;
   result += minutes.toString().padStart(2, "0") + "m ";
-  result += durationSeconds + "s";
+  result += durationSeconds.toString().padStart(2, "0") + "s";
+  if (inThePast) {
+    result += " ago";
+  }
   return result;
 }

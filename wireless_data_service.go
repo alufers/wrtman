@@ -22,7 +22,7 @@ type APClient struct {
 	SignalStrength float64 `json:"signalStrength"`
 }
 
-// WirelessDataService queries OpenWRT APs to
+// WirelessDataService queries OpenWRT APs to get their wirless status
 type WirelessDataService struct {
 	conn           *OpenWrtConnection
 	CacheDuration  time.Duration

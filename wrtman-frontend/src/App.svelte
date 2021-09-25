@@ -1,35 +1,32 @@
 <script lang="ts">
-  import config from "./config";
-  import DHCPLeasesTable from "./DHCPLeasesTable.svelte";
-
   import Logo from "./Logo.svelte";
-  import type IDevice from "./model/IDevice";
-  import NetworkDeviceCard from "./NetworkDeviceCard.svelte";
+  import { Router, Link, Route } from "svelte-navigator";
+  import CurrentStatusPage from "./CurrentStatusPage.svelte";
+  import AllDevicesPage from "./AllDevicesPage.svelte";
 
-  const fetchNetworkDevices = fetch(config.baseURL + "/api/devices").then(
-    (res) => res.json() as Promise<IDevice[]>
-  );
+  function getProps({ location, href, isPartiallyCurrent, isCurrent }) {
+    const isActive = href === "/" ? isCurrent : isPartiallyCurrent || isCurrent;
+
+    // The object returned here is spread on the anchor element's attributes
+    if (isActive) {
+      return { class: "active" };
+    }
+    return {};
+  }
 </script>
 
-<main>
-  <Logo />
-  <section>
-    <h3>Network devices</h3>
-    {#await fetchNetworkDevices}
-      <p>...loading</p>
-    {:then data}
-      <div class="cards-row">
-        {#each data as device}
-          <NetworkDeviceCard {device} />
-        {/each}
-      </div>
-    {:catch error}
-      <p>An error occurred!</p>
-    {/await}
-  </section>
-  <DHCPLeasesTable />
-  <footer>Made by alufers.</footer>
-</main>
+<Router>
+  <main>
+    <Logo />
+    <nav>
+      <Link to="/" {getProps}>Status</Link>
+      <Link to="all-devices" {getProps}>All Devices</Link>
+    </nav>
+    <Route path="/" component={CurrentStatusPage} />
+    <Route path="/all-devices" component={AllDevicesPage} />
+    <footer>Made by alufers.</footer>
+  </main>
+</Router>
 
 <style>
   :global(body) {
@@ -37,6 +34,7 @@
     color: #ddd;
     font-family: monospace;
     --primary: lightseagreen;
+    --primary-dim: seagreen;
     --secondary: lightpink;
     --background-dim: #333;
     --background-dimmer: #555;
@@ -44,6 +42,10 @@
   }
   :global(a) {
     color: var(--primary);
+  }
+  :global(a.active) {
+    text-decoration: none;
+    opacity: 0.8;
   }
   :global(input) {
     border: none;
@@ -54,7 +56,6 @@
     padding: 4px;
     font-family: monospace;
   }
-
 
   :global(select) {
     border: none;
@@ -68,31 +69,6 @@
 
   :global(select option) {
     background: black;
-  }
-
-
-  main {
-    padding: 0.5em;
-    padding-left: 5em;
-    padding-right: 5em;
-    margin: 0 auto;
-  }
-
-  @media (max-width: 640px) {
-    main {
-      padding-left: 0.5em;
-      padding-right: 0.5em;
-      max-width: none;
-    }
-  }
-
-  .cards-row {
-    display: flex;
-    flex-direction: row;
-  }
-  footer {
-    margin-top: 128px;
-    color: var(--foreground-secondary);
   }
 
   :global(button) {
@@ -110,5 +86,25 @@
   }
   :global(button):active {
     transform: scale(0.9);
+  }
+
+  main {
+    padding: 0.5em;
+    padding-left: 5em;
+    padding-right: 5em;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 640px) {
+    main {
+      padding-left: 0.5em;
+      padding-right: 0.5em;
+      max-width: none;
+    }
+  }
+
+  footer {
+    margin-top: 128px;
+    color: var(--foreground-secondary);
   }
 </style>

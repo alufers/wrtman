@@ -1,7 +1,5 @@
 <script lang="ts">
   import type ColumnModel from "./ColumnModel";
-  import { mdiMenuDown, mdiMenuUp } from "@mdi/js";
-  import Icon from "mdi-svelte";
   import HeaderCell from "./HeaderCell.svelte";
   export let columns: ColumnModel<any>[];
   export let dataPromise: Promise<any[]>;
@@ -90,53 +88,54 @@
     </thead>
     <tbody>
       {#await filtered}
-      <tr>
-        <td class="placeholder-cell"> loading... </td>
-      </tr>
-    {:then data}
-      {#if data.length === 0}
+        <tr>
+          <td class="placeholder-cell"> loading... </td>
+        </tr>
+      {:then data}
+        {#if data.length === 0}
+          <tr>
+            <td class="placeholder-cell">
+              <div>No data available. <br /><br /><br /></div>
+              <button on:click={clearFilters}>Clear filters</button>
+            </td>
+          </tr>
+        {/if}
+        {#each data as row}
+          {#each columns as column}
+            <tr>
+              <th>
+                {column.label}
+              </th>
+            </tr>
+            <tr>
+              {#if Array.isArray(column.component)}
+                {#each column.component as component}
+                  <td><svelte:component this={component} {row} {column} /></td>
+                {/each}
+              {:else if column.component}
+                <td>
+                  <svelte:component this={column.component} {row} {column} />
+                </td>
+              {:else}
+                <td>
+                  {#if row[column.key] != null}
+                    {row[column.key]}
+                  {/if}
+                </td>
+              {/if}
+            </tr>
+          {/each}
+        {/each}
+      {:catch error}
         <tr>
           <td class="placeholder-cell">
-            <div>No data available. <br /><br /><br /></div>
-            <button on:click={clearFilters}>Clear filters</button>
+            An error has occured: {error.toString()}
           </td>
         </tr>
-      {/if}
-      {#each data as row}
-      {#each columns as column}
-      <tr>
-        <th>
-          {column.label}
-        </th>
-      </tr>
-      <tr>
-            {#if Array.isArray(column.component)}
-              {#each column.component as component}
-                <td><svelte:component this={component} {row} {column} /></td>
-              {/each}
-            {:else if column.component}
-              <td>
-                <svelte:component this={column.component} {row} {column} />
-              </td>
-            {:else}
-              <td>
-                {#if row[column.key] != null}
-                  {row[column.key]}
-                {/if}
-              </td>
-            {/if}
-          </tr>
-          {/each}
-      {/each}
-    {:catch error}
-      <tr>
-        <td class="placeholder-cell">
-          An error has occured: {error.toString()}
-        </td>
-      </tr>
-    {/await}
+      {/await}
     </tbody>
-  {:else} <!-- END MOBILE -->
+  {:else}
+    <!-- END MOBILE -->
     <thead>
       <tr>
         {#each columns as column}
@@ -209,6 +208,16 @@
         </tr>
       {/await}
     </tbody>
+    {#await Promise.all([filtered, dataPromise]) then data}
+      <tfoot>
+        <tr>
+          <td colspan={nColumns}>
+            Showing <strong>{data[0].length}</strong> of
+            <strong>{data[1].length}</strong> items
+          </td>
+        </tr>
+      </tfoot>
+    {/await}
   {/if}
 </table>
 
@@ -234,5 +243,9 @@
     margin-top: 8px;
     margin-bottom: 8px;
     width: 100%;
+  }
+  tfoot td {
+    padding-top: 16px;
+    color: var(--foreground-secondary);
   }
 </style>

@@ -21,8 +21,9 @@ func MountFrontend(app *fiber.App) {
 		log.Fatalf("failed to generate subFS: %v", err)
 	}
 	app.Use("/", filesystem.New(filesystem.Config{
-		Root:   http.FS(subFS),
-		Browse: true,
+		Root:         http.FS(subFS),
+		Browse:       true,
+		NotFoundFile: "index.html",
 	}))
 	log.Printf("Production frontend mounted")
 

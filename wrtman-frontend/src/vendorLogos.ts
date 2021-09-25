@@ -61,6 +61,10 @@ export const vendorLogos = [
     filename: `ublox.png`,
     vendorStrings: ["u-blox"],
   },
+  {
+    filename: `huawei.png`,
+    vendorStrings: ["Huawei Technologies Co."],
+  },
 ];
 
 export function getVendorLogoURL(row: { vendor: string; hostname: string }) {

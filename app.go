@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/alufers/wrtman/models"
+	"github.com/go-ping/ping"
 	"github.com/gofiber/fiber/v2"
 	"github.com/spf13/viper"
 	"gorm.io/driver/postgres"
@@ -58,6 +60,7 @@ func (a *App) MountEndpoints(fiberApp *fiber.App) {
 	fiberApp.Get("/api/devices", a.getDevices)
 	fiberApp.Get("/api/dhcp-leases", a.getDHCPLeases)
 	fiberApp.Get("/api/all-devices", a.getAllDevices)
+	fiberApp.Post("/api/ping", a.postPingDevices)
 }
 
 func (a *App) MountHooks() {
@@ -253,4 +256,98 @@ func (a *App) getDevices(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.JSON(out)
+}
+
+type postPingBody struct {
+	Addresses []string `json:"addresses"`
+	Timeout   float64  `json:"timeout"`
+}
+
+func (a *App) postPingDevices(ctx *fiber.Ctx) error {
+	dhcpLeases, err := a.MainDHCPService.GetDHCPLeases()
+	if err != nil {
+		return err
+	}
+
+	var body postPingBody
+	if err := ctx.BodyParser(&body); err != nil {
+		return err
+	}
+
+	if body.Timeout == 0 {
+		body.Timeout = 5
+	}
+
+	// check if addresses are in dhcp leases
+	for _, addr := range body.Addresses {
+		found := false
+		for _, l := range dhcpLeases {
+			if l.IPAddress == addr {
+				found = true
+			}
+		}
+		if !found {
+			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": fmt.Sprintf("address %v not found in dhcp leases", addr),
+			})
+		}
+	}
+
+	resps := make(chan interface{})
+
+	for _, addr := range body.Addresses {
+		go func(addr string) {
+			pinger, err := ping.NewPinger(addr)
+			if err != nil {
+				resps <- fiber.Map{
+					"address": addr,
+					"error":   err.Error(),
+				}
+				return
+			}
+
+			pinger.OnRecv = func(pkt *ping.Packet) {
+				pinger.Stop()
+				resps <- fiber.Map{
+					"address": addr,
+					"time":    float64(pkt.Rtt) / float64(time.Millisecond),
+				}
+			}
+			go func() {
+				time.Sleep(time.Duration(body.Timeout * float64(time.Second)))
+				pinger.Stop()
+				resps <- fiber.Map{
+					"address": addr,
+					"error":   "timeout",
+				}
+			}()
+			err = pinger.Run()
+			if err != nil {
+				pinger.Stop()
+				resps <- fiber.Map{
+					"address": addr,
+					"error":   err.Error(),
+				}
+			}
+
+		}(addr)
+	}
+
+	ctx.Status(fiber.StatusOK)
+	i := 0
+	for resp := range resps {
+		data, err := json.Marshal(resp)
+		if err != nil {
+			return err
+		}
+		ctx.Write(data)
+		ctx.Write([]byte("\n"))
+		i++
+		if i == len(body.Addresses) {
+			break
+		}
+	}
+
+	return nil
+
 }

@@ -3,7 +3,8 @@
   import { getVendorLogoURL } from "./vendorLogos";
 
   export let row: { vendor: string; hostname: string };
-  console.log(row);
+  export let column: any;
+
   let vendorLogo = getVendorLogoURL(row);
 </script>
 

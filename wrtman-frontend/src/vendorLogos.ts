@@ -83,7 +83,6 @@ export function getVendorLogoURL(row: { vendor: string; hostname: string }) {
       )
     )?.filename;
   }
-  console.log({ filename });
   if (filename) {
     return `/assets/logos/${filename}`;
   }
